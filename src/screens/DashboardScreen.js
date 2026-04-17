@@ -27,8 +27,8 @@ function fiveYearsAgo() {
 
 async function fetchAkahuPages(userToken, appToken, since, until) {
   const headers = {
-    'X-Akahu-Token': userToken,
-    'X-Akahu-App-Token': appToken,
+    'x-user-token': userToken,
+    'x-app-token': appToken,
     'Content-Type': 'application/json',
   };
   const endParam = until ? `&end=${until}` : '';
@@ -170,8 +170,8 @@ export default function DashboardScreen({ navigation }) {
       }
       const { akahu_user_token: ut, akahu_app_token: at } = tokenRows[0];
       const headers = {
-        'X-Akahu-Token': ut,
-        'X-Akahu-App-Token': at,
+        'x-user-token': ut,
+        'x-app-token': at,
         'Content-Type': 'application/json',
       };
 
