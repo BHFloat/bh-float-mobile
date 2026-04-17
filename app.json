@@ -37,7 +37,7 @@
       "policy": "appVersion"
     },
     "plugins": [
-      "@react-native-async-storage/expo-with-async-storage"
+      "expo-secure-store"
     ],
     "extra": {
       "supabaseUrl": "https://efvgnejwdymkqofstogw.supabase.co",
