@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "BH Float",
+    "slug": "bh-float",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d0d16"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "nz.co.bhfloat.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d0d16"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "nz.co.bhfloat.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/bh-float",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "supabaseUrl": "https://efvgnejwdymkqofstogw.supabase.co",
+      "supabaseAnonKey": "sb_publishable_6AeFXM-vqtFcI8gHKQBK1Q_K4Aw7drR",
+      "akahuProxyUrl": "https://bh-float.vercel.app",
+      "eas": {
+        "projectId": "d212cdac-6b7a-414d-b4e7-c3ec4371775f"
+      }
+    },
+    "owner": "bhfloat"
+  }
+}
