@@ -36,6 +36,9 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "plugins": [
+      "@react-native-async-storage/expo-with-async-storage"
+    ],
     "extra": {
       "supabaseUrl": "https://efvgnejwdymkqofstogw.supabase.co",
       "supabaseAnonKey": "sb_publishable_6AeFXM-vqtFcI8gHKQBK1Q_K4Aw7drR",
