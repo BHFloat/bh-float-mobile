@@ -213,6 +213,26 @@ export default function DashboardScreen({ navigation }) {
           buildState(allItems, accs, excludedIds);
         }
 
+        // Repair window — re-fetch last 120 days to heal middle-of-cache gaps.
+        // Upsert dedupes via onConflict:user_id,id so this only fills holes.
+        try {
+          const repairStart = new Date(Date.now() - 120 * 86400000).toISOString().split('T')[0];
+          const repair = await fetchAkahuPages(ut, at, repairStart);
+          if (repair.length > 0) {
+            const repairIds = new Set(repair.map(t => t._id));
+            const merged = [...allItems.filter(t => !repairIds.has(t._id)), ...repair];
+            const rows = repair.map(t => ({ user_id: userId, id: t._id, raw: t }));
+            for (let i = 0; i < rows.length; i += 500) {
+              await supabase.from('transactions').upsert(rows.slice(i, i + 500), { onConflict: 'user_id,id' });
+            }
+            allItems = merged;
+            setRawTxItems(allItems);
+            buildState(allItems, accs, excludedIds);
+          }
+        } catch (e) {
+          console.warn('Repair window fetch failed:', e.message);
+        }
+
         // Backward backfill — chunked into 1-year windows because Akahu 400s on
         // wide ranges, and wrapped so a partial failure doesn't abort the sync.
         const oldestDate = allItems.map(t => t.date?.split('T')[0]).filter(Boolean).sort().at(0);
