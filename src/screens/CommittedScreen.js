@@ -20,26 +20,28 @@ const BUCKETS = [
   { key: 'committed',     label: 'Committed',     color: '#8b7cf6', hint: 'Bills, subscriptions & recurring' },
   { key: 'discretionary', label: 'Discretionary', color: '#f59e0b', hint: 'Groceries, dining, shopping & more' },
   { key: 'oneoff',        label: 'One-offs',       color: '#64748b', hint: 'Large irregular expenses (≥$5,000)' },
+  { key: 'savings',       label: 'Savings',        color: '#14b8a6', hint: 'Transfers to savings accounts' },
 ];
 
 const INFO = {
   committed:     'Utilities & bills, insurance, fixed subscriptions, and merchants that appear in 3+ months.',
   discretionary: 'Groceries, dining, shopping, transport and variable day-to-day spending.',
   oneoff:        'Large single expenses over $5,000, shown separately to avoid skewing your monthly picture.',
+  savings:       'Money moved into savings accounts — auto-detected from descriptions containing "Rabo".',
 };
 
 export default function CommittedScreen({ route, navigation }) {
   const {
-    committed, discretionary, oneoffs,
-    topCommitted, topDiscretionary, topOneoffs,
+    committed, discretionary, oneoffs, savings,
+    topCommitted, topDiscretionary, topOneoffs, topSavings,
     monthLabel,
   } = route.params;
 
   const [view, setView] = useState('committed');
 
-  const totals = { committed, discretionary, oneoff: oneoffs };
-  const lists  = { committed: topCommitted, discretionary: topDiscretionary, oneoff: topOneoffs };
-  const total  = committed + discretionary + (oneoffs || 0);
+  const totals = { committed, discretionary, oneoff: oneoffs, savings: savings || 0 };
+  const lists  = { committed: topCommitted, discretionary: topDiscretionary, oneoff: topOneoffs, savings: topSavings || [] };
+  const total  = committed + discretionary + (oneoffs || 0) + (savings || 0);
   const bucket = BUCKETS.find(b => b.key === view);
 
   return (
@@ -121,8 +123,8 @@ const styles = StyleSheet.create({
   headerTitle:   { color: '#e8eaf6', fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
   monthLabel:    { color: '#6b6d90', fontSize: 13, textAlign: 'center', marginBottom: 12 },
 
-  summaryRow:    { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
-  summaryCard:   { flex: 1, backgroundColor: '#14141f', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  summaryRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
+  summaryCard:   { flexBasis: '47%', flexGrow: 1, backgroundColor: '#14141f', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
   summaryCardActive: { borderColor: 'rgba(255,255,255,0.2)', backgroundColor: '#1c1c2c' },
   summaryCardLabel:  { color: '#6b6d90', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
   summaryCardValue:  { fontSize: 17, fontWeight: '700', letterSpacing: -0.5, marginBottom: 2 },

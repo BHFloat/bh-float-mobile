@@ -28,7 +28,7 @@
       "favicon": "./assets/favicon.png"
     },
     "updates": {
-      "url": "https://u.expo.dev/bh-float",
+      "url": "https://u.expo.dev/d212cdac-6b7a-414d-b4e7-c3ec4371775f",
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0

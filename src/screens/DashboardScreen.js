@@ -213,20 +213,35 @@ export default function DashboardScreen({ navigation }) {
           buildState(allItems, accs, excludedIds);
         }
 
-        // Backward backfill — fill historical gap up to 5 years
+        // Backward backfill — chunked into 1-year windows because Akahu 400s on
+        // wide ranges, and wrapped so a partial failure doesn't abort the sync.
         const oldestDate = allItems.map(t => t.date?.split('T')[0]).filter(Boolean).sort().at(0);
         const targetStart = fiveYearsAgo();
         if (oldestDate && oldestDate > targetStart) {
-          const until = new Date(new Date(oldestDate) - 86400000).toISOString().split('T')[0];
-          const hist = await fetchAkahuPages(ut, at, targetStart, until);
-          if (hist.length > 0) {
-            const rows = hist.map(t => ({ user_id: userId, id: t._id, raw: t }));
-            for (let i = 0; i < rows.length; i += 500) {
-              await supabase.from('transactions').upsert(rows.slice(i, i + 500), { onConflict: 'user_id,id' });
+          let windowEnd = new Date(new Date(oldestDate) - 86400000);
+          const stopAt  = new Date(targetStart);
+          let iter = 0;
+          while (windowEnd > stopAt && iter++ < 6) {
+            const windowStart = new Date(windowEnd);
+            windowStart.setFullYear(windowStart.getFullYear() - 1);
+            const startStr = (windowStart < stopAt ? stopAt : windowStart).toISOString().split('T')[0];
+            const endStr   = windowEnd.toISOString().split('T')[0];
+            try {
+              const hist = await fetchAkahuPages(ut, at, startStr, endStr);
+              if (hist.length > 0) {
+                const rows = hist.map(t => ({ user_id: userId, id: t._id, raw: t }));
+                for (let i = 0; i < rows.length; i += 500) {
+                  await supabase.from('transactions').upsert(rows.slice(i, i + 500), { onConflict: 'user_id,id' });
+                }
+                allItems = [...hist, ...allItems];
+                setRawTxItems(allItems);
+                buildState(allItems, accs, excludedIds);
+              }
+            } catch (e) {
+              console.warn('Backfill stopped at', startStr, '→', endStr, ':', e.message);
+              break;
             }
-            const withHist = [...hist, ...allItems];
-            setRawTxItems(withHist);
-            buildState(withHist, accs, excludedIds);
+            windowEnd = new Date(new Date(startStr) - 86400000);
           }
         }
       } else {
@@ -262,17 +277,17 @@ export default function DashboardScreen({ navigation }) {
 
   // ── Derived state ────────────────────────────────────────────────────────
   const currentIdx = monthKeys.indexOf(currentKey);
-  const stats      = currentKey ? statsFor(txByMonth, currentKey) : { income: 0, expense: 0, categories: [] };
-  const midMonth   = currentKey ? getMidMonthStatus(txByMonth, currentKey, stats.expense) : null;
+  const stats      = currentKey ? statsFor(txByMonth, currentKey, merchantOverrides) : { income: 0, expense: 0, savings: 0, categories: [] };
+  const midMonth   = currentKey ? getMidMonthStatus(txByMonth, currentKey, stats.expense, merchantOverrides) : null;
 
-  const { committedIds, discretionaryIds, oneoffIds, frequentDiscretionary } =
+  const { committedIds, discretionaryIds, oneoffIds, savingsIds, frequentDiscretionary } =
     classifyTransactions(txByMonth, monthKeys, merchantOverrides);
 
   const threeWay = currentKey
-    ? threeWayStats(txByMonth, currentKey, committedIds, discretionaryIds, oneoffIds)
-    : { committed: 0, discretionary: 0, oneoffs: 0, topCommitted: [], topDiscretionary: [], topOneoffs: [] };
+    ? threeWayStats(txByMonth, currentKey, committedIds, discretionaryIds, oneoffIds, savingsIds)
+    : { committed: 0, discretionary: 0, oneoffs: 0, savings: 0, topCommitted: [], topDiscretionary: [], topOneoffs: [], topSavings: [] };
 
-  const allMonthStats = monthKeys.map(mk => ({ k: mk, ...statsFor(txByMonth, mk) }));
+  const allMonthStats = monthKeys.map(mk => ({ k: mk, ...statsFor(txByMonth, mk, merchantOverrides) }));
   const avgExpense = allMonthStats.length
     ? allMonthStats.reduce((sum, m) => sum + m.expense, 0) / allMonthStats.length : 0;
 
@@ -413,10 +428,11 @@ export default function DashboardScreen({ navigation }) {
             <View style={styles.metricsRow}>
               <MetricCard label="Income"   value={fmt(stats.income)}  valueColor="#22d99a" accentColor="#22d99a" />
               <MetricCard label="Expenses" value={fmt(stats.expense)} valueColor="#ff6b6b" accentColor="#ff6b6b" />
+              <MetricCard label="Savings"  value={fmt(stats.savings || 0)} valueColor="#14b8a6" accentColor="#14b8a6" />
               <MetricCard
                 label="Net"
-                value={fmt(stats.income - stats.expense)}
-                valueColor={stats.income - stats.expense >= 0 ? '#22d99a' : '#ff6b6b'}
+                value={fmt(stats.income - stats.expense - (stats.savings || 0))}
+                valueColor={stats.income - stats.expense - (stats.savings || 0) >= 0 ? '#22d99a' : '#ff6b6b'}
                 accentColor="#4f88ff"
               />
             </View>
@@ -457,9 +473,11 @@ export default function DashboardScreen({ navigation }) {
                 committed:        threeWay.committed,
                 discretionary:    threeWay.discretionary,
                 oneoffs:          threeWay.oneoffs,
+                savings:          threeWay.savings,
                 topCommitted:     threeWay.topCommitted,
                 topDiscretionary: threeWay.topDiscretionary,
                 topOneoffs:       threeWay.topOneoffs,
+                topSavings:       threeWay.topSavings,
                 monthLabel:       mLabel(currentKey),
               })}
               activeOpacity={0.85}
@@ -479,6 +497,11 @@ export default function DashboardScreen({ navigation }) {
                 <View style={styles.committedStat}>
                   <Text style={styles.committedLabel}>One-offs</Text>
                   <Text style={[styles.committedValue, { color: '#64748b' }]}>{fmt(threeWay.oneoffs)}</Text>
+                </View>
+                <View style={styles.committedDivider} />
+                <View style={styles.committedStat}>
+                  <Text style={styles.committedLabel}>Savings</Text>
+                  <Text style={[styles.committedValue, { color: '#14b8a6' }]}>{fmt(threeWay.savings || 0)}</Text>
                 </View>
               </View>
               <Text style={styles.panelChevron}>View details →</Text>
@@ -544,6 +567,7 @@ export default function DashboardScreen({ navigation }) {
                   const isExcludedTx = excludedIds.has(tx._id);
                   const isCommitted  = tx.amount < 0 && committedIds.has(tx._id);
                   const isOneoff     = tx.amount < 0 && oneoffIds.has(tx._id);
+                  const isSavings    = tx.amount < 0 && savingsIds.has(tx._id);
                   return (
                     <View key={tx._id} style={[styles.txRow, isExcludedTx && { opacity: 0.4 }]}>
                       <View style={[styles.txDot, { backgroundColor: tx.amount > 0 ? '#22d99a' : categoryColor(tx._cat) }]} />
@@ -555,6 +579,7 @@ export default function DashboardScreen({ navigation }) {
                           <Text style={styles.txDate}>{tx.date?.split('T')[0]}</Text>
                           {isCommitted  && <Text style={[styles.txDate, { color: '#8b7cf6' }]}>committed</Text>}
                           {isOneoff     && <Text style={[styles.txDate, { color: '#64748b' }]}>one-off</Text>}
+                          {isSavings    && <Text style={[styles.txDate, { color: '#14b8a6' }]}>savings</Text>}
                           {isExcludedTx && <Text style={styles.txDate}>excluded</Text>}
                         </View>
                       </View>
@@ -617,8 +642,8 @@ const styles = StyleSheet.create({
   bottomPad:    { height: 32 },
 
   // Metric cards
-  metricsRow:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  metricCard:   { flex: 1, backgroundColor: '#14141f', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  metricsRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  metricCard:   { flexBasis: '48%', flexGrow: 1, backgroundColor: '#14141f', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
   metricLabel:  { color: '#6b6d90', fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
   metricValue:  { fontSize: 18, fontWeight: '700', letterSpacing: -0.5 },
   metricSub:    { color: '#6b6d90', fontSize: 10, marginTop: 3 },

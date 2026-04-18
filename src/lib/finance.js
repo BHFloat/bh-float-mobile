@@ -14,6 +14,7 @@ const TRANSFER_PATTERNS = [
   /mastercard (payment|autopay|auto pay)/i,
   /(internet|mobile|online) banking (transfer|payment)/i,
   /internal transfer/i,
+  /asb visa/i,
 ];
 
 const EXCLUDED_TYPES = new Set(['TRANSFER', 'CREDIT CARD']);
@@ -90,24 +91,37 @@ function buildTxByMonth(transactions, internalIds) {
   return map;
 }
 
-function statsFor(txByMonth, k) {
+function isSavingsTx(tx, merchantOverrides) {
+  if (!tx || tx.amount >= 0) return false;
+  const overrides = merchantOverrides || new Map();
+  const override = overrides.get(normMerchant(tx.description));
+  if (override === 'savings') return true;
+  if (override) return false;
+  return /rabo/i.test(tx.description || '');
+}
+
+function statsFor(txByMonth, k, merchantOverrides) {
   const txs = txByMonth[k] || [];
-  let income = 0, expense = 0;
+  let income = 0, expense = 0, savings = 0;
   const catMap = {};
   txs.forEach(tx => {
     if (tx.amount > 0) {
       income += tx.amount;
-    } else {
-      const a = Math.abs(tx.amount);
-      expense += a;
-      const cat = categorize(tx.description);
-      catMap[cat] = (catMap[cat] || 0) + a;
+      return;
     }
+    const a = Math.abs(tx.amount);
+    if (isSavingsTx(tx, merchantOverrides)) {
+      savings += a;
+      return;
+    }
+    expense += a;
+    const cat = categorize(tx.description);
+    catMap[cat] = (catMap[cat] || 0) + a;
   });
   const categories = Object.entries(catMap)
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value, color: categoryColor(name) }));
-  return { income, expense, categories };
+  return { income, expense, savings, categories };
 }
 
 // ── Three-bucket classification ─────────────────────────────────────────────
@@ -157,6 +171,7 @@ function classifyTransactions(txByMonth, monthKeys, merchantOverrides) {
   const committedIds      = new Set();
   const discretionaryIds  = new Set();
   const oneoffIds         = new Set();
+  const savingsIds        = new Set();
   const freqDiscSpend     = {};
 
   monthKeys.forEach(mk => {
@@ -171,8 +186,10 @@ function classifyTransactions(txByMonth, monthKeys, merchantOverrides) {
         if (override === 'committed')     committedIds.add(tx._id);
         else if (override === 'discretionary') discretionaryIds.add(tx._id);
         else if (override === 'oneoff')   oneoffIds.add(tx._id);
+        else if (override === 'savings')  savingsIds.add(tx._id);
         return;
       }
+      if (/rabo/i.test(tx.description || '')) { savingsIds.add(tx._id); return; }
       if (amt >= ONEOFF_THRESHOLD) { oneoffIds.add(tx._id); return; }
       if (ALWAYS_COMMITTED_CATS.has(cat)) { committedIds.add(tx._id); return; }
       if (fixedSubIds.has(tx._id) && !ALWAYS_DISCRETIONARY_CATS.has(cat)) { committedIds.add(tx._id); return; }
@@ -194,18 +211,22 @@ function classifyTransactions(txByMonth, monthKeys, merchantOverrides) {
     frequentDiscretionary.set(merchant, total / months);
   });
 
-  return { committedIds, discretionaryIds, oneoffIds, frequentDiscretionary };
+  return { committedIds, discretionaryIds, oneoffIds, savingsIds, frequentDiscretionary };
 }
 
-function threeWayStats(txByMonth, k, committedIds, discretionaryIds, oneoffIds) {
+function threeWayStats(txByMonth, k, committedIds, discretionaryIds, oneoffIds, savingsIds) {
   const txs = (txByMonth[k] || []).filter(tx => tx.amount < 0);
-  let committed = 0, discretionary = 0, oneoffs = 0;
-  const committedMap = {}, discretionaryMap = {}, oneoffMap = {};
+  if (!savingsIds) savingsIds = new Set();
+  let committed = 0, discretionary = 0, oneoffs = 0, savings = 0;
+  const committedMap = {}, discretionaryMap = {}, oneoffMap = {}, savingsMap = {};
 
   txs.forEach(tx => {
     const amt   = Math.abs(tx.amount);
     const label = normMerchant(tx.description);
-    if (committedIds.has(tx._id)) {
+    if (savingsIds.has(tx._id)) {
+      savings += amt;
+      savingsMap[label] = (savingsMap[label] || 0) + amt;
+    } else if (committedIds.has(tx._id)) {
       committed += amt;
       committedMap[label] = (committedMap[label] || 0) + amt;
     } else if (oneoffIds.has(tx._id)) {
@@ -223,20 +244,21 @@ function threeWayStats(txByMonth, k, committedIds, discretionaryIds, oneoffIds) 
     .map(([merchant, value]) => ({ merchant, value }));
 
   return {
-    committed, discretionary, oneoffs,
+    committed, discretionary, oneoffs, savings,
     topCommitted:     topFromMap(committedMap),
     topDiscretionary: topFromMap(discretionaryMap),
     topOneoffs:       topFromMap(oneoffMap),
+    topSavings:       topFromMap(savingsMap),
   };
 }
 
-function getMidMonthStatus(txByMonth, k, avgExpense) {
+function getMidMonthStatus(txByMonth, k, avgExpense, merchantOverrides) {
   const [year, month] = k.split('-').map(Number);
   const today = new Date();
   if (today.getFullYear() !== year || today.getMonth() + 1 !== month) return null;
   const daysInMonth = new Date(year, month, 0).getDate();
   const dayOfMonth  = today.getDate();
-  const stats       = statsFor(txByMonth, k);
+  const stats       = statsFor(txByMonth, k, merchantOverrides);
   const dailyRate   = dayOfMonth > 0 ? stats.expense / dayOfMonth : 0;
   const projected   = Math.round(dailyRate * daysInMonth);
   const vsAvg       = avgExpense > 0 ? Math.round((projected - avgExpense) / avgExpense * 100) : 0;
@@ -251,7 +273,7 @@ const mShort = k => { const [y,m]=k.split('-'); return new Date(+y,+m-1,1).toLoc
 module.exports = {
   isTransfer, isExcluded, detectInternalTransfers,
   CATEGORIES, categorize, categoryColor,
-  buildTxByMonth, statsFor,
+  buildTxByMonth, statsFor, isSavingsTx,
   normMerchant, classifyTransactions, threeWayStats,
   getMidMonthStatus,
   fmt, mKey, mLabel, mShort,
