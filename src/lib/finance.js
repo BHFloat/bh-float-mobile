@@ -14,7 +14,6 @@ const TRANSFER_PATTERNS = [
   /mastercard (payment|autopay|auto pay)/i,
   /(internet|mobile|online) banking (transfer|payment)/i,
   /internal transfer/i,
-  /asb visa/i,
 ];
 
 const EXCLUDED_TYPES = new Set(['TRANSFER', 'CREDIT CARD']);
