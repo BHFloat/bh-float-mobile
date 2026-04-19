@@ -110,7 +110,7 @@ export default function DashboardScreen({ navigation }) {
   const [excludedIds,       setExcludedIds]       = useState(new Set());
   const [merchantOverrides, setMerchantOverrides] = useState(new Map());
 
-  const buildState = useCallback((txItems, accs, excIds = new Set()) => {
+  const buildState = useCallback((txItems, accs, excIds = new Set(), preserveKey = false) => {
     const internalIds = detectInternalTransfers(txItems);
     const statsItems = txItems.filter(tx => !isExcluded(tx, internalIds) && !excIds.has(tx._id));
     const map = buildTxByMonth(statsItems, new Set());
@@ -118,7 +118,11 @@ export default function DashboardScreen({ navigation }) {
     setTxByMonth(map);
     setMonthKeys(keys);
     setAccounts(accs);
-    setCurrentKey(prev => (keys.includes(prev) ? prev : keys[keys.length - 1] || ''));
+    if (preserveKey) {
+      setCurrentKey(prev => (keys.includes(prev) ? prev : keys[keys.length - 1] || ''));
+    } else {
+      setCurrentKey(keys[keys.length - 1] || '');
+    }
   }, []);
 
   async function toggleExclude(txId) {
@@ -129,7 +133,7 @@ export default function DashboardScreen({ navigation }) {
     if (userId) {
       await AsyncStorage.setItem(`excl_${userId}`, JSON.stringify([...next]));
     }
-    if (rawTxItems.length > 0) buildState(rawTxItems, accounts, next);
+    if (rawTxItems.length > 0) buildState(rawTxItems, accounts, next, true);
   }
 
   const loadData = useCallback(async () => {
