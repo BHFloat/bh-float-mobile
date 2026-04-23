@@ -55,7 +55,8 @@ function detectInternalTransfers(transactions) {
 
 const CATEGORIES = [
   { name: 'Groceries',         color: '#22d99a', keywords: ['countdown','pak n save','paknsave','new world','fresh choice','foursquare','four square','woolworths','supermarket','produce','butcher','bakery'] },
-  { name: 'Transport',         color: '#4f88ff', keywords: ['petrol','fuel','bp ','z energy','mobil','gull','caltex','challenge fuel','uber','ola ','taxi','parking','at hop','hop card','nzta','waka kotahi'] },
+  { name: 'Fuel',              color: '#4f88ff', keywords: ['petrol','fuel','bp ','z energy','mobil','gull','caltex','challenge fuel','waitomo','npd '] },
+  { name: 'Rideshare & Transit', color: '#60a5fa', keywords: ['uber','ola ','taxi','parking','at hop','hop card','nzta','waka kotahi','metlink','bee card'] },
   { name: 'Dining & Cafes',    color: '#f59e0b', keywords: ['restaurant','cafe','coffee','espresso','mcdonald','kfc','burger','pizza','subway','sushi','noodle','takeaway','dominos','hell pizza','grill',' bar ','pub ','tavern','bistro','eatery','diner','kebab'] },
   { name: 'Shopping',          color: '#a855f7', keywords: ['amazon','the warehouse','kmart','farmers ','briscoes','noel leeming','jb hi-fi','rebel sport','hallensteins','glassons','cotton on','trade me','aliexpress','shein','temu'] },
   { name: 'Health & Fitness',  color: '#06b6d4', keywords: ['pharmacy','chemist','doctor','dental','medical','clinic','hospital','gym','fitness','les mills','anytime fitness','jetts','physio','health'] },
@@ -125,7 +126,7 @@ function statsFor(txByMonth, k, merchantOverrides) {
 
 // ── Three-bucket classification ─────────────────────────────────────────────
 const ALWAYS_COMMITTED_CATS     = new Set(['Utilities & Bills', 'Insurance']);
-const ALWAYS_DISCRETIONARY_CATS = new Set(['Groceries', 'Dining & Cafes', 'Shopping', 'Transport', 'Travel']);
+const ALWAYS_DISCRETIONARY_CATS = new Set(['Groceries', 'Dining & Cafes', 'Shopping', 'Fuel', 'Rideshare & Transit', 'Travel']);
 
 function normMerchant(desc) {
   return (desc || '').toLowerCase().replace(/\s+/g, ' ').trim();
