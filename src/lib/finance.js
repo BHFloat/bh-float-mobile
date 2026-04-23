@@ -67,13 +67,75 @@ const CATEGORIES = [
   { name: 'Tax',               color: '#94a3b8', keywords: ['inland revenue','ird ','inland revenue department'] },
 ];
 
-function categorize(desc) {
+const AKAHU_LEAF_MAP = {
+  'Fuel stations': 'Fuel',
+  'Bus and shuttle transport services': 'Rideshare & Transit',
+  'Parking services': 'Rideshare & Transit',
+  'Transport services (not elsewhere classified)': 'Rideshare & Transit',
+  'Taxi and rideshare services': 'Rideshare & Transit',
+  'Supermarkets and grocery stores': 'Groceries',
+  'Specialty food stores': 'Groceries',
+  'Bakeries': 'Groceries',
+  'Meat supplies': 'Groceries',
+  'Convenience stores': 'Groceries',
+  'Cafes and restaurants': 'Dining & Cafes',
+  'Fast food stores': 'Dining & Cafes',
+  'Ice cream, gelato, nut, and confectionary stores': 'Dining & Cafes',
+  'Caterers': 'Dining & Cafes',
+  'Clothing stores': 'Shopping',
+  'Cosmetic supplies': 'Shopping',
+  'Book stores': 'Shopping',
+  'General retail stores': 'Shopping',
+  'Variety stores': 'Shopping',
+  'Secondhand and opportunity stores': 'Shopping',
+  'Stationery and office supplies': 'Shopping',
+  'Gift and souvenir stores': 'Shopping',
+  'Watch, clock, and jewellery stores and services': 'Shopping',
+  'Sports equipment and supplies': 'Shopping',
+  'Specialty retail stores (not elsewhere classified)': 'Shopping',
+  'Building supplies': 'Shopping',
+  'Vehicle dealers (not elsewhere classified)': 'Shopping',
+  'Haircuts and treatments': 'Shopping',
+  'Pharmacies': 'Health & Fitness',
+  'Doctors and physicians': 'Health & Fitness',
+  'Veterinary services': 'Health & Fitness',
+  'Gyms, fitness, aquatic facilities, yoga, pilates': 'Health & Fitness',
+  'Sports and athletic clubs': 'Health & Fitness',
+  'Pets and related supplies, accommodation, and services': 'Health & Fitness',
+  'Entertainment (not elsewhere classified)': 'Entertainment',
+  'Cinemas': 'Entertainment',
+  'Casino, lottery, and other gambling services': 'Entertainment',
+  'Digital gaming products and services': 'Entertainment',
+  'Media and entertainment streaming services': 'Entertainment',
+  'Attractions, museums, zoos, amusement parks, circuses, exhibits': 'Entertainment',
+  'Electricity services': 'Utilities & Bills',
+  'Gas services': 'Utilities & Bills',
+  'Water and sanitation services': 'Utilities & Bills',
+  'Waste and recycling services': 'Utilities & Bills',
+  'Telecommunication services': 'Utilities & Bills',
+  'Local government': 'Utilities & Bills',
+  'Insurance': 'Insurance',
+  'Airports': 'Travel',
+  'Airlines': 'Travel',
+  'Hotels, motels, and resorts': 'Travel',
+  'Tax payments': 'Tax',
+};
+
+function categorizeByKeyword(desc) {
   if (!desc) return 'Other';
   const l = desc.toLowerCase();
   for (const cat of CATEGORIES) {
     if (cat.keywords.some(k => l.includes(k))) return cat.name;
   }
   return 'Other';
+}
+
+function categorize(input) {
+  if (!input) return 'Other';
+  if (typeof input === 'string') return categorizeByKeyword(input);
+  const leaf = input.category?.name;
+  if (leaf && AKAHU_LEAF_MAP[leaf]) return AKAHU_LEAF_MAP[leaf];
+  return categorizeByKeyword(input.description || '');
 }
 
 function categoryColor(name) {
@@ -115,7 +177,7 @@ function statsFor(txByMonth, k, merchantOverrides) {
       return;
     }
     expense += a;
-    const cat = categorize(tx.description);
+    const cat = categorize(tx);
     catMap[cat] = (catMap[cat] || 0) + a;
   });
   const categories = Object.entries(catMap)
@@ -179,7 +241,7 @@ function classifyTransactions(txByMonth, monthKeys, merchantOverrides) {
       if (tx.amount >= 0) return;
       const amt      = Math.abs(tx.amount);
       const merchant = normMerchant(tx.description);
-      const cat      = categorize(tx.description);
+      const cat      = categorize(tx);
       const override = merchantOverrides.get(merchant);
 
       if (override) {

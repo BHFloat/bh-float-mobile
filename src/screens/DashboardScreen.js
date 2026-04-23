@@ -352,11 +352,11 @@ export default function DashboardScreen({ navigation }) {
 
   const currentTxs = rawMonth
     .filter(tx => {
-      if (catFilter && categorize(tx.description) !== catFilter) return false;
+      if (catFilter && categorize(tx) !== catFilter) return false;
       if (search && !tx.description?.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     })
-    .map(tx => ({ ...tx, _cat: categorize(tx.description) }))
+    .map(tx => ({ ...tx, _cat: categorize(tx) }))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   // ── Loading / error screens ───────────────────────────────────────────────
