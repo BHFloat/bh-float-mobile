@@ -108,11 +108,14 @@ export default function DashboardScreen({ navigation }) {
   const [activeTab,  setActiveTab]  = useState('overview'); // 'overview' | 'transactions'
   const [rawTxItems,        setRawTxItems]        = useState([]);
   const [excludedIds,       setExcludedIds]       = useState(new Set());
+  const [excludedAccounts,  setExcludedAccounts]  = useState(new Set());
+  const [showAccounts,      setShowAccounts]      = useState(false);
   const [merchantOverrides, setMerchantOverrides] = useState(new Map());
 
-  const buildState = useCallback((txItems, accs, excIds = new Set(), preserveKey = false) => {
-    const internalIds = detectInternalTransfers(txItems);
-    const statsItems = txItems.filter(tx => !isExcluded(tx, internalIds) && !excIds.has(tx._id));
+  const buildState = useCallback((txItems, accs, excIds = new Set(), preserveKey = false, excAccts = new Set()) => {
+    const visible = txItems.filter(tx => !excAccts.has(tx._account));
+    const internalIds = detectInternalTransfers(visible);
+    const statsItems = visible.filter(tx => !isExcluded(tx, internalIds) && !excIds.has(tx._id));
     const map = buildTxByMonth(statsItems, new Set());
     const keys = Object.keys(map).sort();
     setTxByMonth(map);
@@ -133,7 +136,29 @@ export default function DashboardScreen({ navigation }) {
     if (userId) {
       await AsyncStorage.setItem(`excl_${userId}`, JSON.stringify([...next]));
     }
-    if (rawTxItems.length > 0) buildState(rawTxItems, accounts, next, true);
+    if (rawTxItems.length > 0) buildState(rawTxItems, accounts, next, true, excludedAccounts);
+  }
+
+  async function toggleAccountExclude(accountId) {
+    const next = new Set(excludedAccounts);
+    const sentinel = `__acct__${accountId}`;
+    if (next.has(accountId)) {
+      next.delete(accountId);
+      await supabase.from('merchant_overrides')
+        .delete()
+        .eq('user_id', userId)
+        .eq('merchant', sentinel);
+    } else {
+      next.add(accountId);
+      await supabase.from('merchant_overrides').upsert({
+        user_id:        userId,
+        merchant:       sentinel,
+        classification: 'account_excluded',
+        updated_at:     new Date().toISOString(),
+      }, { onConflict: 'user_id,merchant' });
+    }
+    setExcludedAccounts(next);
+    if (rawTxItems.length > 0) buildState(rawTxItems, accounts, excludedIds, true, next);
   }
 
   const loadData = useCallback(async () => {
@@ -150,13 +175,25 @@ export default function DashboardScreen({ navigation }) {
         if (stored) setExcludedIds(new Set(JSON.parse(stored)));
       } catch (_) {}
 
-      // Load merchant overrides (set on web, respected on mobile)
+      // Load merchant overrides (set on web, respected on mobile). Sentinel
+      // rows (merchant starts with __acct__, classification='account_excluded')
+      // represent excluded accounts rather than merchant reclassifications.
       const { data: overrides } = await supabase
         .from('merchant_overrides')
         .select('merchant, classification')
         .eq('user_id', uid);
       if (overrides?.length) {
-        setMerchantOverrides(new Map(overrides.map(r => [r.merchant, r.classification])));
+        const merchOv = new Map();
+        const accEx   = new Set();
+        overrides.forEach(r => {
+          if (r.classification === 'account_excluded' && r.merchant.startsWith('__acct__')) {
+            accEx.add(r.merchant.slice('__acct__'.length));
+          } else {
+            merchOv.set(r.merchant, r.classification);
+          }
+        });
+        setMerchantOverrides(merchOv);
+        setExcludedAccounts(accEx);
       }
 
       const userId = uid;
@@ -192,7 +229,7 @@ export default function DashboardScreen({ navigation }) {
         // Show cached data immediately
         const items = cached.map(r => r.raw);
         setRawTxItems(items);
-        buildState(items, accs, excludedIds);
+        buildState(items, accs, excludedIds, false, excludedAccounts);
         setLoading(false);
 
         // Forward sync
@@ -214,7 +251,7 @@ export default function DashboardScreen({ navigation }) {
           }
           allItems = merged;
           setRawTxItems(allItems);
-          buildState(allItems, accs, excludedIds);
+          buildState(allItems, accs, excludedIds, false, excludedAccounts);
         }
 
         // Repair window — re-fetch last 120 days to heal middle-of-cache gaps.
@@ -231,7 +268,7 @@ export default function DashboardScreen({ navigation }) {
             }
             allItems = merged;
             setRawTxItems(allItems);
-            buildState(allItems, accs, excludedIds);
+            buildState(allItems, accs, excludedIds, false, excludedAccounts);
           }
         } catch (e) {
           console.warn('Repair window fetch failed:', e.message);
@@ -259,7 +296,7 @@ export default function DashboardScreen({ navigation }) {
                 }
                 allItems = [...hist, ...allItems];
                 setRawTxItems(allItems);
-                buildState(allItems, accs, excludedIds);
+                buildState(allItems, accs, excludedIds, false, excludedAccounts);
               }
             } catch (e) {
               console.warn('Backfill stopped at', startStr, '→', endStr, ':', e.message);
@@ -276,7 +313,7 @@ export default function DashboardScreen({ navigation }) {
           await supabase.from('transactions').upsert(rows.slice(i, i + 500), { onConflict: 'user_id,id' });
         }
         setRawTxItems(items);
-        buildState(items, accs, excludedIds);
+        buildState(items, accs, excludedIds, false, excludedAccounts);
         setLoading(false);
       }
     } catch (e) {
@@ -345,6 +382,7 @@ export default function DashboardScreen({ navigation }) {
 
   // Display transactions — include excluded items but mark them
   const rawMonth = currentKey ? rawTxItems.filter(tx => {
+    if (excludedAccounts.has(tx._account)) return false;
     const d = new Date(tx.date);
     const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     return mk === currentKey;
@@ -391,14 +429,40 @@ export default function DashboardScreen({ navigation }) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>BH Float</Text>
-          <Text style={styles.headerSub}>
-            {accounts.length} account{accounts.length !== 1 ? 's' : ''} · {fmt(totalBalance)}
-          </Text>
+          <TouchableOpacity onPress={() => setShowAccounts(v => !v)}>
+            <Text style={styles.headerSub}>
+              {accounts.length - excludedAccounts.size}/{accounts.length} account{accounts.length !== 1 ? 's' : ''} · {fmt(totalBalance)}
+            </Text>
+          </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </View>
+
+      {showAccounts && accounts.length > 0 && (
+        <View style={styles.acctPanel}>
+          <Text style={styles.acctTitle}>Tap to hide from dashboard</Text>
+          {accounts.map(a => {
+            const excluded = excludedAccounts.has(a._id);
+            return (
+              <TouchableOpacity
+                key={a._id}
+                onPress={() => toggleAccountExclude(a._id)}
+                style={styles.acctRow}
+              >
+                <Text style={[styles.acctCheck, { color: excluded ? '#6b6d90' : '#4f88ff' }]}>
+                  {excluded ? '☐' : '☑'}
+                </Text>
+                <Text style={[styles.acctName, excluded && styles.acctNameDim]} numberOfLines={1}>
+                  {a.name}
+                </Text>
+                <Text style={styles.acctBank} numberOfLines={1}>{a.connection?.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* Month navigation */}
       <View style={styles.monthNav}>
@@ -645,6 +709,14 @@ const styles = StyleSheet.create({
   headerSub:    { color: '#6b6d90', fontSize: 12, marginTop: 2 },
   signOutBtn:   { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   signOutText:  { color: '#6b6d90', fontSize: 13 },
+
+  acctPanel:    { marginHorizontal: 16, marginTop: 4, marginBottom: 12, padding: 10, borderRadius: 10, backgroundColor: '#14141f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  acctTitle:    { color: '#6b6d90', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  acctRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  acctCheck:    { fontSize: 15, width: 22 },
+  acctName:     { flex: 1, color: '#e8eaf6', fontSize: 13 },
+  acctNameDim:  { color: '#6b6d90', textDecorationLine: 'line-through' },
+  acctBank:     { color: '#6b6d90', fontSize: 11, marginLeft: 8, maxWidth: 80 },
 
   // Month nav
   monthNav:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
