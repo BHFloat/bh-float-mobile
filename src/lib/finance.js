@@ -55,13 +55,14 @@ function detectInternalTransfers(transactions) {
 
 const CATEGORIES = [
   { name: 'Groceries',         color: '#22d99a', keywords: ['countdown','pak n save','paknsave','new world','fresh choice','foursquare','four square','woolworths','supermarket','produce','butcher','bakery'] },
-  { name: 'Fuel',              color: '#4f88ff', keywords: ['petrol','fuel','bp ','z energy','mobil','gull','caltex','challenge fuel','waitomo','npd '] },
+  { name: 'Fuel',              color: '#4f88ff', keywords: ['petrol','fuel','bp ','z energy','mobil','gull','caltex','challenge fuel','waitomo','npd ',' gas '] },
   { name: 'Rideshare & Transit', color: '#60a5fa', keywords: ['uber','ola ','taxi','parking','at hop','hop card','nzta','waka kotahi','metlink','bee card'] },
   { name: 'Dining & Cafes',    color: '#f59e0b', keywords: ['restaurant','cafe','coffee','espresso','mcdonald','kfc','burger','pizza','subway','sushi','noodle','takeaway','dominos','hell pizza','grill',' bar ','pub ','tavern','bistro','eatery','diner','kebab'] },
   { name: 'Shopping',          color: '#a855f7', keywords: ['amazon','the warehouse','kmart','farmers ','briscoes','noel leeming','jb hi-fi','rebel sport','hallensteins','glassons','cotton on','trade me','aliexpress','shein','temu'] },
   { name: 'Health & Fitness',  color: '#06b6d4', keywords: ['pharmacy','chemist','doctor','dental','medical','clinic','hospital','gym','fitness','les mills','anytime fitness','jetts','physio','health'] },
   { name: 'Entertainment',     color: '#ec4899', keywords: ['netflix','spotify','disney','apple tv','youtube premium','cinema','hoyts','movie','concert','ticketek','steam','playstation','xbox','sky tv','neon '] },
-  { name: 'Utilities & Bills', color: '#64748b', keywords: ['power','electricity','contact energy','mercury energy','genesis','vector','water rate','internet','spark','vodafone','one nz','2degrees','chorus','skinny','broadband','council rates'] },
+  { name: 'Utilities & Bills', color: '#64748b', keywords: ['power','electricity','contact energy','mercury energy','genesis','vector','water rate','internet','spark','vodafone','one nz','2degrees','chorus','skinny','broadband','council rates','frank energy','metro gas','metrogas'] },
+  { name: 'Mortgage',          color: '#d97706', keywords: ['mortgage','home loan','loan repayment','loan pmt','loan payment'] },
   { name: 'Insurance',         color: '#8b7cf6', keywords: ['insurance','ami ','aa insurance','state insurance','tower insurance','southern cross','fidelity life','partners life'] },
   { name: 'Travel',            color: '#f97316', keywords: ['air new zealand','airnz','jetstar','qantas','hotel','motel','airbnb','booking.com','expedia','accommodation'] },
   { name: 'Tax',               color: '#94a3b8', keywords: ['inland revenue','ird ','inland revenue department'] },
@@ -119,11 +120,14 @@ const AKAHU_LEAF_MAP = {
   'Airlines': 'Travel',
   'Hotels, motels, and resorts': 'Travel',
   'Tax payments': 'Tax',
+  'Mortgage repayments': 'Mortgage',
+  'Loan repayments': 'Mortgage',
 };
 
 function categorizeByKeyword(desc) {
   if (!desc) return 'Other';
   const l = desc.toLowerCase();
+  if (/metro\s*gas|frank\s*energy/.test(l)) return 'Utilities & Bills';
   for (const cat of CATEGORIES) {
     if (cat.keywords.some(k => l.includes(k))) return cat.name;
   }
@@ -187,7 +191,7 @@ function statsFor(txByMonth, k, merchantOverrides) {
 }
 
 // ── Three-bucket classification ─────────────────────────────────────────────
-const ALWAYS_COMMITTED_CATS     = new Set(['Utilities & Bills', 'Insurance']);
+const ALWAYS_COMMITTED_CATS     = new Set(['Utilities & Bills', 'Insurance', 'Mortgage']);
 const ALWAYS_DISCRETIONARY_CATS = new Set(['Groceries', 'Dining & Cafes', 'Shopping', 'Fuel', 'Rideshare & Transit', 'Travel']);
 
 function normMerchant(desc) {

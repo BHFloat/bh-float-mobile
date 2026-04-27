@@ -599,7 +599,7 @@ export default function DashboardScreen({ navigation }) {
             {stats.categories.length > 0 && (
               <View style={styles.panel}>
                 <Text style={styles.panelTitle}>Spending Categories</Text>
-                {stats.categories.map(cat => (
+                {[...stats.categories].sort((a, b) => b.value - a.value).map(cat => (
                   <CategoryRow
                     key={cat.name}
                     cat={cat}
