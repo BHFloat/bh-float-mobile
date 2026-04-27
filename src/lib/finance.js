@@ -62,7 +62,7 @@ const CATEGORIES = [
   { name: 'Health & Fitness',  color: '#06b6d4', keywords: ['pharmacy','chemist','doctor','dental','medical','clinic','hospital','gym','fitness','les mills','anytime fitness','jetts','physio','health'] },
   { name: 'Entertainment',     color: '#ec4899', keywords: ['netflix','spotify','disney','apple tv','youtube premium','cinema','hoyts','movie','concert','ticketek','steam','playstation','xbox','sky tv','neon '] },
   { name: 'Utilities & Bills', color: '#64748b', keywords: ['power','electricity','contact energy','mercury energy','genesis','vector','water rate','internet','spark','vodafone','one nz','2degrees','chorus','skinny','broadband','council rates','frank energy','metro gas','metrogas'] },
-  { name: 'Mortgage',          color: '#d97706', keywords: ['mortgage','home loan','loan repayment','loan pmt','loan payment'] },
+  { name: 'Mortgage',          color: '#d97706', keywords: ['mortgage','home loan','loan repayment','loan pmt','loan payment','loan interest','loan principal','interest debit'] },
   { name: 'Insurance',         color: '#8b7cf6', keywords: ['insurance','ami ','aa insurance','state insurance','tower insurance','southern cross','fidelity life','partners life'] },
   { name: 'Travel',            color: '#f97316', keywords: ['air new zealand','airnz','jetstar','qantas','hotel','motel','airbnb','booking.com','expedia','accommodation'] },
   { name: 'Tax',               color: '#94a3b8', keywords: ['inland revenue','ird ','inland revenue department'] },
