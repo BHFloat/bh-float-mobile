@@ -395,7 +395,9 @@ export default function DashboardScreen({ navigation }) {
       return true;
     })
     .map(tx => ({ ...tx, _cat: categorize(tx) }))
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    .sort((a, b) => catFilter
+      ? Math.abs(b.amount) - Math.abs(a.amount)
+      : (b.date || '').localeCompare(a.date || ''));
 
   // ── Loading / error screens ───────────────────────────────────────────────
   if (loading) {
